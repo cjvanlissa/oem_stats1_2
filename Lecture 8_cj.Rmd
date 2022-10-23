@@ -1,0 +1,632 @@
+---
+title:    "Bivariate linear regression"
+author:   "Caspar J. van Lissa"
+date:     "`r format(Sys.Date(), '%d %b %Y')`"
+output:   
+  ioslides_presentation:
+    css: ['big_shiny.css', 'https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css']
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+set.seed(42/101)
+Hours = abs(rnorm(92, 4, 2))
+Grade = abs(3 + (7/9)*Hours)+rnorm(92)
+Grade[Grade > 10] <- 10 - (Grade[Grade > 10] - 10)
+studentdata <- data.frame(Grade=Grade, Hours=Hours)
+```
+
+<!-- f <- readClipboard() -->
+<!-- olddir <- "D:/OneDrive - Universiteit Utrecht/UU Methods/PDA 2017/materials" -->
+<!-- f <- f[grepl("\\.\\/materials", f, ignore.case = T)] -->
+<!-- f <- gsub('^.+"(.+)".+$', "\\1", f) -->
+<!-- f <- basename(f) -->
+<!-- for(i in f){ -->
+<!--   file.copy(file.path(olddir, i), file.path("materials", i)) -->
+<!-- } -->
+
+## Today: Regression (part 2):
+
+* Review of the simple regression model
+    + Step 1. What does the linear relationship look like (regression coefficients)?
+    + Step 2. How strong is the linear relationship $R^2$?
+    + Step 3. Statistical inference about coefficients (t-test and F-test)?
+* Standardized regression coefficients: $\beta$
+* Intro multiple regression analysis
+
+Reference material:
+
+* Chapter 11: read 11.4-11.8, 11.11 
+* Book 2(!): Chapter 4: read 4.1-4.3
+
+
+## Ptolemy
+
+```{r, out.width="90%"}
+knitr::include_graphics("./Materials/Ptolemy.jpg")
+```
+
+
+## Thought experiment
+
+If I tell you the average grade for this course from last year was...
+
+$\bar{Y} = `r round(mean(Grade), 1)`$
+
+Then what grade would you reasonably expect to get?
+
+
+## Thought experiment
+
+If I additionally tell you that there is a "strong effect" of hours studied on grade, and you know that you have studied more than average, does this change your expectation?
+
+## What does this show?
+
+1. The average value is the best prediction in absence of other information
+2. If you possess other variables that **correlate** with the outcome, you can use that information to make **better predictions**
+
+## Scatterplot
+
+If there were no association, the mean $\bar{Y}$ would be the best prediction:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+geom_hline(yintercept = mean(Grade), linetype = 2, size = 2)
+```
+
+## Association between hours studied and grade
+
+The predictions are a bit wrong for everyone:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+geom_hline(yintercept = mean(Grade), linetype = 2, size = 2)+geom_segment(x=Hours, xend = Hours, y = mean(Grade), yend = Grade,  col="blue")
+
+```
+
+## Association between hours studied and grade
+
+Fun fact: The average of these errors is the standard deviation of "Grade"
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+geom_hline(yintercept = mean(Grade), linetype = 2, size = 2)+geom_segment(x=Hours, xend = Hours, y = mean(Grade), yend = Grade,  col="blue")
+
+```
+
+## Association between hours studied and grade
+
+But: The points seem to follow a diagonal line upwards, instead of the straight line of the mean:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+Grade.Hours <- lm(Grade ~Hours, studentdata)
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "red", size = 2)
+```
+
+## Linear effect
+
+The distances from a diagonal line are clearly smaller than from the straight line of the mean:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE,}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "black", size = 1)+
+  geom_segment(x = Hours, xend = Hours, y = Grade,  yend = predict.lm(Grade.Hours, newdata = studentdata), colour = "red")
+  
+```
+
+## Linear effect
+
+You can follow the line to see what grade to expect for your hours studied. These predictions are clearly better than the mean:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+Grade.Hours <- lm(Grade ~Hours, studentdata)
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "red", size = 2)+
+  geom_segment(x = 5, y = 0, xend = 5, yend = predict.lm(Grade.Hours, newdata = data.frame(Hours = 5)), colour = "green", size = 1, linetype = 2)+
+  geom_segment(x = 0, y = predict.lm(Grade.Hours, newdata = data.frame(Hours = 5)), xend = 5, yend = predict.lm(Grade.Hours, newdata = data.frame(Hours = 5)), colour = "green", size = 1, linetype = 2)
+```
+
+## Formula
+
+A diagonal line is described as:
+
+<!--$y = 3 + 2X$-->
+
+$Y = a + bX$
+
+```{r, out.width = "600px", out.height="450px"}
+knitr::include_graphics("./Materials/yabx.png")
+```
+
+
+## Coefficients
+
+The formula for a line is
+
+$Y = a + bX$
+
+
+$a$ is the <font color = "blue">intercept</font>, where the line intersects the Y-axis. 
+
+* Predicted value for X is 0
+
+
+$b$ is the <font color = "blue">slope</font>, how steep the line is
+
+* The average increase in Y, for 1 step increase in X
+
+
+## Prediction error
+
+The prediction $\hat{Y}_i$ is rarely exactly identical to the grade of an individual student, $Y_i$
+
+There is always *prediction error*, $Y_i - \hat{Y}_i$:
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+Grade.Hours <- lm(Grade ~Hours, studentdata)
+whichstud <- 71
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "black", size = 1)+
+  geom_segment(x = studentdata[whichstud,2], y = 0, xend = studentdata[whichstud,2], yend = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), colour = "green", size = 1, linetype = 2)+
+  geom_segment(x = 0, y = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), xend = studentdata[whichstud,2], yend = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), colour = "green", size = 1, linetype = 2)+
+  geom_segment(x = studentdata[whichstud,2], y = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), xend = studentdata[whichstud,2], yend = studentdata[whichstud,1], colour = "red", size = 1, linetype = 2)+
+  geom_segment(x = 0, y = studentdata[whichstud,1], xend = studentdata[whichstud,2], yend = studentdata[whichstud,1], colour = "red", size = 1, linetype = 2)
+
+```
+
+## Estimating the coefficients
+
+Plugging the estimated coefficients into the formula:
+
+$\hat{Y}_i = `r round(Grade.Hours[["coefficients"]][1], 1)` + `r round(Grade.Hours[["coefficients"]][2], 1)`*X_i$
+
+
+Student 71 studied `r round(Hours[71], 1)` hours, so the predicted grade is ($\hat{Y}_{71}$):
+
+$\hat{Y}_{71} = `r round(Grade.Hours[["coefficients"]][1], 1)` + `r round(Grade.Hours[["coefficients"]][2], 1)` * `r round(Hours[71], 1)` = `r round((Grade.Hours[["coefficients"]][1] + Hours[71]*Grade.Hours[["coefficients"]][2]), 1)`$
+
+In reality, student 71 scored a `r round(Grade[71], 1)`, so the prediction error was $Y_i - \hat{Y}_i = `r round(Grade[71], 1)` - `r round((Grade.Hours[["coefficients"]][1] + Hours[71]*Grade.Hours[["coefficients"]][2]), 1)` = `r round(Grade[71], 1)-round((Grade.Hours[["coefficients"]][1] + Hours[71]*Grade.Hours[["coefficients"]][2]), 1)`$
+
+```{r, fig.width=3, fig.asp=3/4, echo=FALSE}
+Grade.Hours <- lm(Grade ~Hours, studentdata)
+whichstud <- 71
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "black", size = 1)+
+  geom_segment(x = studentdata[whichstud,2], y = 0, xend = studentdata[whichstud,2], yend = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), colour = "green", size = 1, linetype = 2)+
+  geom_segment(x = 0, y = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), xend = studentdata[whichstud,2], yend = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), colour = "green", size = 1, linetype = 2)+
+  geom_segment(x = studentdata[whichstud,2], y = predict.lm(Grade.Hours, newdata = studentdata[whichstud,]), xend = studentdata[whichstud,2], yend = studentdata[whichstud,1], colour = "red", size = 1, linetype = 2)+
+  geom_segment(x = 0, y = studentdata[whichstud,1], xend = studentdata[whichstud,2], yend = studentdata[whichstud,1], colour = "red", size = 1, linetype = 2)
+
+```
+
+## Complete regression formula
+
+The formula $Y = a + bX$ describes the AVERAGE line through the data. 
+
+We can include the prediction error in the formula:
+
+$Y_i = a + b*X_i +\epsilon_{i}$
+
+We usually assume that $\epsilon_{i} \sim N(0, S_{e})$
+
+
+## Complete regression formula
+
+$Y_i = a + b*X_i +\epsilon_{i}$
+
+Symbol        | Meaning
+-------------- | -----------------------------------------------------
+$Y_i$          | The value of dependent variable Y for individual i
+$a$            | Intercept of the regression line
+$b$            | Slope of the regression line
+$X_i$          | Value of predictor variable X for individual i
+$\epsilon_i$   | Prediction error for individual i
+
+
+## Observed and predicted values
+
+"The individual values of Y are equal to the intercept, plus the slope times the individual value on X, plus the individual prediction error"
+
+$Y_i = a + b*X_i +\epsilon_{i}$
+
+And also:
+
+"The individual values of Y are equal to the <font color = "blue">predicted value</font>, plus individual prediction error"
+
+$Y_i = \hat{Y}_i + \epsilon_{i}$
+
+The predicted value is the value on the regression line:
+$\hat{Y}_i = a + b*X_i$
+
+# Sums of squares
+
+## How much error is there in total?
+
+We want to know how good/bad the model is for all participants.
+
+Can we just add the prediction errors for all 92 participants? 
+
+## Sum of Squared Errors
+
+Because the line is exactly in the middle of the data, the average of all prediction errors is **always 0**
+
+Sum of <font color = "blue">positive</font> prediction errors: `r predicted<- Grade.Hours$coefficients[1]+Grade.Hours$coefficients[2]*Hours; round(sum((Grade-predicted)[(Grade-predicted) > 0]),2)`
+
+Sum of \alert{negative} prediction errors: `r round(sum((Grade-predicted)[(Grade-predicted) < 0]),2)`
+
+<!---->
+
+```{r, fig.width=5, fig.asp=3/4, echo=FALSE,}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+
+  geom_abline(intercept = Grade.Hours$coefficients[1], slope = Grade.Hours$coefficients[2], colour = "black", size = 1)+
+  geom_segment(x = Hours, xend = Hours, y = Grade,  yend = predict.lm(Grade.Hours, newdata = studentdata), colour = ifelse(Grade > predicted, "blue", "red"))
+  
+```
+
+
+## Sum of Squared Errors (SSE)
+
+By **squaring** the prediction errors, we always get a positive sum which reflects the total error across all participants.
+
+Sum of squared prediction errors (sum of squared errors, SSE):
+
+$$
+\sum{(Y_i - \hat{Y}_i)^2} = `r round(sum((Grade-predicted)^2),2)`
+$$
+
+This is called a **sum of squares**, and its formula always looks like:
+
+$$
+\sum(\dots-\dots)^2
+$$
+
+
+## Smallest possible SSE
+
+Linear regression by definition gives the line with the **smallest possible** total prediction error
+
+The method is called "ordinary least squares" (= squared errors).
+
+## How good is our regression line?
+
+To decide how good our model is, we compare the SSE against the sum of squares you would get if there were NO association between the predictor and outcome
+
+Remember: What value would you predict for everyone if there were no association between Hours en Grade?
+
+## Total Sum of Squares
+
+You would predict the mean Grade for everyone, $\bar{Y}$.
+
+The sum of squared distances of individual scores to the mean is called the <font color = "blue">Total Sum of Squares</font>, TSS: $\sum{(Y_i-\bar{Y}_i)^2} = `r round(sum((Grade-mean(Grade))^2),2)`$
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+ggplot(studentdata, aes(x=Hours, y=Grade))+geom_point()+geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+theme_bw()+scale_x_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+scale_y_continuous(limits = c(0,10), breaks=seq(0, 10, by = 1))+geom_hline(yintercept = mean(Grade), linetype = 1)+geom_segment(x=Hours, xend = Hours, y = mean(Grade), yend = Grade,  col="blue")
+```
+
+## Regression Sum of Squares
+
+The improvement in predictions made by the regression line, compared to the mean, is called <font color = "blue">Regression Sum of Squares</font>, RSS:
+
+The difference between the regression line and the mean:
+
+$$
+\sum{(\hat{Y}_i-\bar{Y})^2}
+$$
+
+Is the same as: Total SS - Error SS = Regression SS
+
+`r round(sum((Grade-mean(Grade))^2),2)` - `r round(sum((Grade-predicted)^2),2)` = `r round(sum((Grade-mean(Grade))^2)-sum((Grade-predicted)^2),2)`
+
+## Demo sum of squares
+
+[I made a demo here (LINK)](https://utrecht-university.shinyapps.io/cj_regression_residuals/)
+
+## Demo sum of squares
+
+<iframe src="https://utrecht-university.shinyapps.io/cj_regression_residuals/"></iframe>
+
+
+## Sum of squares formulas
+
+Sum  | Formula                         | Same as
+-----|---------------------------------|---------------
+SSE  | $\sum{(Y_i - \hat{Y}_i)^2}$     | SST - SSR
+SST  | $\sum{(Y_i - \bar{Y})^2}$       | SSR + SSE
+SSR  | $\sum{(\hat{Y}_i - \bar{Y})^2}$ | SST-SSE
+
+
+# Explained variance
+
+## Explained variance
+
+\alert{Problem:} Sums of squares are not interpretable on any meaningful scale, and cannot be compared across datasets
+
+<font color = "blue">Solution:</font> We standardize the sums of squares.
+
+## Explained variance
+
+Which part of the TOTAL sum of squares (TSS) is explained away by the regression line (RSS)?
+
+$\frac{RSS}{TSS} = \frac{TSS-SSE}{TSS} = R^2$
+
+$R^2$ is called the proportion of **explained variance**
+
+For two variables, that is the same as the correlation ($r$) squared; hence R-squared
+
+## Explained variance
+
+Which portion of the total variance in the outcome is explained by the values on the predictor?
+
+
+(See demo again)
+
+In this case:
+$\frac{`r round(sum((Grade-mean(Grade))^2)-sum((Grade-predicted)^2),2)`}{`r round(sum((Grade-mean(Grade))^2),2)`} = `r round((sum((Grade-mean(Grade))^2)-sum((Grade-predicted)^2))/sum((Grade-mean(Grade))^2),2)`$
+
+
+# Tests
+
+## Is the regression significant?
+
+Does the regression-line explain significantly more variance than the mean-line?
+
+Formulate your hypotheses:
+
+* $H_0$: $R^2 = 0$
+* $H_A$: $R^2 > 0$
+
+**Important:**
+
+$R^2$ can only have positive values, so we need a test statistic that can only take positive values
+
+## F-Test
+
+We use the F-distribution
+
+```{r, out.width="600px", out.height="450px"}
+knitr::include_graphics("./Materials/F_distribution.png")
+```
+
+<!--$F = \frac{MEAN of Squares Segression}{MEAN of Squares Error} = \frac{SSR/k}{SSE/(n-k)}$
+
+$df_1$: k
+$df_2$: n-k-->
+
+## F-Test
+
+The F-test is a ratio of two sources of variance:
+
+$$
+F = \frac{\sigma^2_{\text{regression}}}{\sigma^2_{\text{Error}}} = \frac{SSR/(p-1)}{SSE/(n-p)}
+$$
+p is the number of **parameters** (coefficients) in the regression equation (intercept and slope), and n is the number of participants
+
+* $df_1$: p-1
+* $df_2$: n-p
+
+## Reporting
+
+The regression model explained a significant proportion of the variance in the outcome, $R^2 = `r tmp = summary(Grade.Hours); round(tmp$r.squared, 2)`, F(`r tmp$fstatistic[2]`, `r tmp$fstatistic[3]`) = `r round(tmp$fstatistic[1], 2)`, p < .001.$ This means that the number of hours studied explained `r round(tmp$r.squared, 2)`*100% of the variance in exam grades.
+
+<!--`r round(pf(tmp$fstatistic[1], tmp$fstatistic[2], tmp$fstatistic[3], lower.tail = FALSE), 2)`$.-->
+
+## Testing coefficients
+
+Similarly, you can test whether the coefficients (a and b) are significantly different from 0.
+
+Can the intercept (a) and slope (b) take positive/negative values?
+
+## Testing coefficients
+
+Because the intercept (a) and slope (b) can take positive/negative values, we use the t-distribution:
+
+* $H_0$: $b = 0$
+* $H_A$: $b \neq 0$
+
+$$
+t = \frac{b-b_{H0}}{SE_b}
+$$ 
+
+* $df$: n - p - 1
+
+(p: number of predictors, minus one for the intercept)
+
+## Test 
+
+```{r, out.width="70%"}
+knitr::include_graphics("./Materials/2sidedtest.png")
+```
+
+
+## Reporting
+
+The effect of hours studied on exam grade was significantly different from zero, $b = `r round(Grade.Hours[["coefficients"]][2], 2)`, t(`r Grade.Hours[["df.residual"]]`) = `r round(summary(Grade.Hours)[["coefficients"]][2,3], 2)`, p < .001.$ This means that for every additional hours studied, the average grade increased by `r round(Grade.Hours[["coefficients"]][2], 2)`.
+
+<!--`r round(summary(Grade.Hours)$coefficients[2,4], 2)`$.-->
+
+## In SPSS
+
+```{r, out.width="90%"}
+knitr::include_graphics("./materials/spss_regression_output.png")
+```
+
+
+# Assumptions
+
+## Assumption: Normality
+
+The prediction errors are <font color = "blue">normally distributed</font> with a mean of 0. Is this normal?
+
+$\epsilon_i \sim N(0, \sigma)$
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE}
+hist(Grade-predicted, main = "Histogram van prediction errors")
+```
+
+## Assumption: Homoscedasticity
+
+The prediction errors are distributed identically <font color = "blue">for all values of the predictor</font>!
+
+```{r, out.width="90%"}
+knitr::include_graphics("./Materials/homoscedasticiteit.png")
+```
+
+## Assumption: Linearity
+
+
+```{r, out.width="650px", out.height = "500px"}
+knitr::include_graphics("./Materials/nonlinear_cor.png")
+```
+
+
+# Multiple regression
+
+## Multiple regression
+
+* When to use? 
+* Multiple regression model with two predictors
+* Main questions
+    + What does the model look like?
+    + Explanatory power of both predictors together?
+    + Which predictor is most important?
+
+## How to explain differences in...
+
+Income?
+
+```{r, out.width="90%"}
+knitr::include_graphics("./materials/income.png")
+```
+
+## Multiple Regression: unique effects
+
+**Aim:** predict dependent variable Y from multiple predictors $X_1, X_2, \ldots,X_k$ with a linear model:
+
+$y_i = b_0 + b_1 * x_1 + b_2 * x_2 + \ldots + b_k * x_k + \epsilon_i$
+
+This will give you the **unique/partial effect** of each predictor, while keeping all other variables constant
+
+## When to use?
+
+* To make better predictions using all available predictors
+* To compare relative importance of different predictors
+* To improve causal inference
+
+# Standardized regression coefficients
+
+## Standardizing regression coefficients
+
+**Problem:** We want to know how important different predictors are
+
+**Problem:** We want to compare the effect of the same variable across two studies
+
+Solution: Standardize the regression coefficient to make them ~comparable (but there are limitations)
+
+## What is standardized regression coefficient
+
+It's just the regression coefficient you would get IF you carried out the analysis after standardizing the X and Y variables
+
+Instead of X and Y, we use Z-scores:
+
+$Z_x = (X - \bar{X}) / SD_x$
+$Z_y = (Y - \bar{Y}) / SD_y$
+
+Z-scores: mean = 0,  SD = 1
+
+Z-scores lose the original units of a variable. The new unit is the SD: a Z-score of 1.3 means "1.3 standard deviations above the mean"
+
+## Interpretation
+
+**Unstandardized**
+
+A one-point increase in X is associated with a $b$-point increase in Y
+
+**Standardized**
+
+A one-SD increase in X is associated with a $\beta$ SD increase in Y
+
+
+## When to use (un)standardized coefficients?
+
+**Unstandardized**
+
+* If the units are meaningful/important (e.g., years, euros, centimeters, number of questions correct)
+* If there are (clinical) cut-off scores
+
+**Standardized**
+
+* When units are not meaningful (e.g., depression, need to belong, job satisfaction, Likert scales).
+* If you want to compare effect sizes / variable importance
+
+In this course, we will mostly focus on the unstandardized regression coefficient b
+
+# Causality
+
+## Causality
+
+* Often, we want to find causal relationships: X -> Y
+    + Treatment, Policy decisions, Investments
+* Causality can only be established using experiments, or assumed based on theory
+* If our theory implies alternative explanations, we can account for these using multiple regression
+    + Our theory could be wrong. In this case, our analysis can give misleading results
+
+## Types of multivariate relationships
+
+* Spurious association between X and Y (there is common “cause” to both)
+* Mediation effect X -> M -> Y (chain relationship)
+* Multiple causes (e.g., job performance = motivation + education)
+* Interaction: (the effect of X on Y depends on the level of a third variable, M)
+
+## Types of multivariate relationships
+
+```{r, out.width="90%"}
+knitr::include_graphics("./materials/types_relationships.png")
+```
+
+## Types, continued
+
+```{r, out.width="90%"}
+knitr::include_graphics("./materials/confounders.png")
+```
+
+[Further reading about causal inference for the curious](https://theoreticalecology.wordpress.com/2019/04/14/mediators-confounders-colliders-a-crash-course-in-causal-inference/)
+
+## Confounders
+
+* A confounding variable causes BOTH X and Y
+* This inflates the observed relationship between X and Y
+* **Assuming that your model is correct**, controlling for confounders improves causal inference 
+* Common suspected confounders are gender, age, education
+    + Controlling for a variable that is not causally related to the outcome can bias your results, so don't put EVERYTHING in the model without good reason
+
+## Confounder example
+
+```{r}
+knitr::include_graphics("./materials/control_height_vocab.png")
+```
+
+## Confounder example
+
+```{r}
+knitr::include_graphics("./materials/control_height_vocab2.png")
+```
+
+## Confounder example 2
+
+```{r}
+knitr::include_graphics("./materials/control_stress.png")
+```
+
+## Confounder example 2
+
+```{r}
+knitr::include_graphics("./materials/control_stress2.png")
+```
+
+## More next week...
+
+... then we will carry out multiple regression analysis with two predictors!
+
+Reference material for next week:
+
+* Book 2(!): Chapter 4: 4.6 and 4.7.3
+*	Chapter 5: 5.1, 5.8 and 5.9
