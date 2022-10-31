@@ -1,0 +1,705 @@
+---
+title: "Lecture 9 - Multiple linear regression"
+author:   "Caspar J. van Lissa"
+date:     "`r format(Sys.Date(), '%d %b %Y')`"
+format: revealjs
+---
+
+```{r}
+library(kableExtra)
+options(knitr.kable.NA = '')
+```
+
+# MLR recap
+
+## Multiple regressie
+
+Regression with multiple predictors
+  
+Answers the question: What is the effect of one predictor, keeping all other predictors equal to zero (= controlling for)?
+
+
+## Multiple regression
+
+Model is built up of "blocks" of the form $+b*X$
+
+Add as many predictors as you want:
+
+$\hat{Y}_i = a + b_1*X_{1i}+ b_2*X_{2i} + b_3*X_{3i} + \dots + b_K*X_{Ki}$
+
+## Parameters
+
+$\hat{Y}_i = a + b_1*X_{1i}+ b_2*X_{2i}$
+
+$a$ is the $\color{blue}{\text{intercept}}$
+
+* Predicted value when **all**  X-es are equal to 0
+* Value for someone who scored 0 on all X-es
+
+$b_1$ and $b_2$ are $\color{blue}{\text{slopes}}$
+
+* Every X gets a b
+* b is how much Y increases for a 1-point increase in its X, while keeping **all other** X-es equal to 0
+
+## Two bivariate regression examples
+
+Two simple bivariate regressions, $\hat{Y}_i = a + b_1*X_1$
+
+```{r, fig.width=6.5, fig.asp=3/4, echo=FALSE, warning=FALSE, message=FALSE}
+library(scales)
+require(gridExtra)
+library(ggplot2)
+set.seed(32)
+x1 <- rnorm(100)
+x1 <- rescale(x1, to = c(0,40))
+
+x2 <- rnorm(100)
+x2 <- round(rescale(x2, to = c(1,7)))
+
+y <- 20 - .25*x1 + 4*x2 + rnorm(100) 
+
+invdat <- data.frame(Workinghours=x1, Genderrole=x2, Involvement = y)
+rm(x1, x2, y)
+werkmodel <- lm(Involvement ~ Workinghours, invdat)
+gendermodel <- lm(Involvement ~ Genderrole, invdat)
+
+werkplot1 <- ggplot(invdat, aes(x=Workinghours, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(0,40), breaks=seq(0, 40, by = 5))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = werkmodel$coefficients[1], slope = werkmodel$coefficients[2], colour = "black", size = 1)
+
+genderplot1 <- ggplot(invdat, aes(x=Genderrole, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(0,7), breaks=seq(0, 7, by = 1))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = gendermodel$coefficients[1], slope = gendermodel$coefficients[2], colour = "black", size = 1)
+
+grid.arrange(werkplot1, genderplot1, ncol=2)
+
+```
+
+
+## Multiple regression example
+
+One multiple regression, $\hat{Y}_i = a + b_1*X_1 + b_2*X_2$
+
+```{r, fig.width=6.5, fig.asp=3/4, echo=FALSE, warning=FALSE, message=FALSE}
+invmodel <- lm(Involvement ~ Workinghours + Genderrole, invdat)
+
+werkplot2 <- ggplot(invdat, aes(x=Workinghours, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(0,40), breaks=seq(0, 40, by = 5))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = invmodel$coefficients[1], slope = invmodel$coefficients[2], colour = "black", size = 1)
+
+genderplot2 <- ggplot(invdat, aes(x=Genderrole, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(0,7), breaks=seq(0, 7, by = 1))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = invmodel$coefficients[1], slope = invmodel$coefficients[3], colour = "black", size = 1)
+
+grid.arrange(werkplot2, genderplot2, ncol=2)
+
+```
+
+## Multiple regression example 2
+
+It seems like the lines follow a pattern in the data, but somehow fall outside of the range of the data
+
+That is not true: The effect of Workinghours is controlled for the effect of Genderrole, and vice versa.
+
+<!-- [$\color{red}{\text{This is best visualized as a 3D plot...}}$](https://plot.ly/~c.j.vanlissa/3.embed) -->
+
+```{r, fig.height=2, fig.width=4, echo=FALSE, warning=FALSE, message=FALSE}
+grid.arrange(werkplot2, genderplot2, ncol=2)
+
+```
+
+## Multiple regression 3D plot
+
+```{r, echo = FALSE, message=FALSE}
+library(plotly)
+library(reshape2)
+library(scales)
+require(gridExtra)
+set.seed(32)
+x1 <- rnorm(100)
+x1 <- rescale(x1, to = c(0,40))
+
+x2 <- rnorm(100)
+x2 <- round(rescale(x2, to = c(1,7)))
+
+y <- 20 - .25*x1 + 4*x2 + rnorm(100) 
+
+invdat <- data.frame(Workinghours=x1, Genderrole=x2, Involvement = y)
+rm(x1, x2, y)
+
+invmodel <- lm(Involvement ~ Workinghours + Genderrole, invdat)
+
+graph_reso <- .5
+
+#Setup Axis
+axis_x <- seq(min(invdat$Workinghours), max(invdat$Workinghours), by = graph_reso)
+axis_y <- seq(min(invdat$Genderrole), max(invdat$Genderrole), by = graph_reso)
+
+#Sample points
+inv_lm_surface <- expand.grid(Workinghours = axis_x, Genderrole = axis_y, KEEP.OUT.ATTRS = F)
+inv_lm_surface$Involvement <- predict.lm(invmodel, newdata = inv_lm_surface)
+inv_lm_surface <- acast(inv_lm_surface, Genderrole ~ Workinghours, value.var = "Involvement") #y ~ x
+
+invplot <- plot_ly() %>%
+  add_surface(x = axis_x, 
+                  y = axis_y, 
+                  z = inv_lm_surface, 
+                  type = "surface") %>%#, 
+                  #opacity = 1,
+                  #colors = c('#d1d1d1','#000000')) %>%
+  add_trace(x = invdat$Workinghours, 
+            y = invdat$Genderrole,
+            z = invdat$Involvement, 
+            type = "scatter3d", 
+            mode = "markers",
+            marker = list(color = "red"),
+            #color = coh$dance,
+            #colors = c("gray70", '#6d98f3'),
+            opacity = 1) %>%
+  layout(title = "Multiple regression demo",
+         scene = list(xaxis = list(title = 'Workinghours', range = c(0,40)),# ticktype = "array", tickvals = ticks),
+                      yaxis = list(title = 'Gender role', range = c(1,7)),# ticktype = "array", tickvals = ticks),
+                      zaxis = list(title = 'Involvement', range = c(0,50)),# ticktype = "array", tickvals = ticks),
+                      camera = list(eye = list(x = 2, y = -2, z = 1.25), zoom = 5),
+                      showlegend = FALSE))
+invplot
+```
+
+
+## Centering
+
+> $a$: The $\color{blue}{\text{intercept}}$, predicted values when **all**  X-es are equal to 0
+
+Bit inconvenient, because (almost) no-one works 0 hours, and nobody scores 0 on the 1-7 point Likert-scale for genderroles
+
+## Centering
+So, we change the zero-point:
+
+$\text{Center}(Y_i) = Y_i - \bar{Y} = \text{observed - average}$
+
+```{r, fig.width=6, fig.asp=3/4, echo=FALSE, warning=FALSE, message=FALSE}
+scale_dat <- data.frame(Scaled = factor(c(rep(0, 100), rep(1, 100)), labels = c("Original", "Centered")), Genderrole = c(invdat$Genderrole, scale(invdat$Genderrole, scale = FALSE)))
+
+ggplot(scale_dat, aes(x=Genderrole, linetype = Scaled))+geom_histogram(alpha = 0, binwidth = 1, position = 'identity', size = 1, colour = "black")+scale_linetype_manual(values = c(3, 1))+theme_bw()+ theme(legend.position="none")
+
+```
+
+
+## Multiple regression after centering
+Now the separate plots from multiple regression look like this:
+
+```{r, fig.width=6.2, fig.asp=3/4, echo=FALSE, warning=FALSE, message=FALSE}
+invdat_cent <- invdat
+invdat_cent[,c(1,2)]<-lapply(invdat_cent[,c(1,2)], scale, scale = FALSE)
+invmodel_c <- lm(Involvement ~ Workinghours + Genderrole, invdat_cent)
+
+werkplot3 <- ggplot(invdat_cent, aes(x=Workinghours, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(-20,20), breaks=seq(-20,20, by = 5))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = invmodel_c$coefficients[1], slope = invmodel_c$coefficients[2], colour = "black", size = 1)
+
+genderplot3 <- ggplot(invdat_cent, aes(x=Genderrole, y=Involvement))+
+  geom_point()+
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  theme_bw()+
+  scale_x_continuous(limits = c(-4,4), breaks=seq(-4,4, by = 1))+
+  scale_y_continuous(limits = c(0,50), breaks=seq(0, 50, by = 5))+
+  geom_abline(intercept = invmodel_c$coefficients[1], slope = invmodel_c$coefficients[3], colour = "black", size = 1)
+
+grid.arrange(werkplot3, genderplot3, ncol=2)
+
+```
+
+## Centering
+
+* Pick a meaningful zero-point for the predictors
+* For example, the mean
+
+# MLR Assumptions
+
+## Preliminary Checks
+
+* DV has to be  __continuous __ (interval or ratio)
+  * Otherwise use another model (not part of this course)
+* Ratio of cases to predictors (N > p)
+  * Larger samples -> More accurate estimates
+  * Minimum N depends on effect size (large effects, fewer cases)
+* _Rule of thumb_
+  * 10 to 15 cases per predictor (but really: much much more)
+
+
+## Assumptions
+
+* Independent observations
+    + Each observation conveys unique information
+* Linearity
+    + Linear relationship between Y’ and the predictors.
+* Normality
+    + Residuals are normally distributed
+* Homoscedasticity
+    + Residuals are equally distributed for all values of predictors
+* Model correctly specified
+    + Direction of causality
+    + No omitted confounders, interactions, nonlinear effects
+* No multicolinearity
+
+## Assumptions regression
+
+* Model is only valid if assumptions are met
+* If assumptions are violated, our model misrepresents the data, and is uninterpretable
+  + Tests may be misleading
+  + Inferences not justified.
+* We need to check assumptions
+    + But no evidence of violation is not the same as evidence of no violation
+    
+## Independent observations
+
+* Scores should be independent of one another
+    + Every observation conveys unique information
+* If your observations are dependent, your "effective sample size" is lower
+    + This causes you to underestimate uncertainty about estimates
+* Assumption is satisfied with simple random sampling.
+
+## Independent observations
+
+* Examples of violations:
+  * Cheating on an exam
+  * Married couples
+  * Children within the same class (same teacher, background, etc)
+* If you know  _why_  cases are dependent, there are solutions (not part of this course)
+
+## Linearity
+
+* Visual check
+  * Scatterplot: do the points follow a straight line?
+
+![](img/assumptions1.png)
+
+## Linearity 2
+
+* Residual plots
+
+```{r}
+knitr::include_graphics("materials/residuals3.png")
+```
+## Linearity 2
+
+Correcting: 
+
+* Data transformation (e.g., square or square root of predictor) or using non-linear regression (e.g., logistic regression; lectures 12&13 for major B&E).
+
+```{r}
+knitr::include_graphics("materials/residuals2.png")
+```
+
+## Normal residuals
+
+Why are residuals normally distributed?
+
+* Because they are the result of many random processes
+
+[https://www\.youtube\.com/watch?v=6YDHBFVIvIs&feature=youtu\.be&t=6](https://www.youtube.com/watch?v=6YDHBFVIvIs&feature=youtu.be&t=6)
+
+## Assessing normality
+
+* Histogram, “Normal P-P plot”
+* Kolmogorov-Smirnov, Shapiro-Wilkes test
+
+![](img/assumptions6.png)
+
+## Normality: Visual inspection
+
+```{r, out.width="30%"}
+knitr::include_graphics("img/assumptions4.png")
+knitr::include_graphics("img/assumptions5.png")
+```
+
+## Homoscedasticity
+
+* Distribution of residuals $\epsilon_i$
+* equal variance for all predicted scores
+* Residual plot:
+  * Y:  _standardized_  residuals
+  * X:  _standardized_  predicted values
+
+## Homoscedasticity plots
+
+```{r}
+knitr::include_graphics("materials/sausage_funnel.png")
+```
+
+## Outliers
+
+Outliers can violate normality and/or homoscedasticity
+
+![](img/assumptions11.jpg)
+
+## Outliers
+
+* __Types of outliers:       How to detect them:__
+  * in  <span style="color:#00B050">y\-space</span> : 		Standardized residuals > 3.3
+  * in  <span style="color:#00B050">x\-space</span> : 		Mahalanobis distance > ~12
+  * in  <span style="color:#00B050">xy</span>  <span style="color:#00B050">\-space</span> : 		Cook’s distance > 1
+* These distance measures can be obtained from regression in SPSS
+
+## Outliers in y-space
+
+* _Standardized residuals_
+  * Poorly  _predicted_  cases
+* If residuals are normally distributed…
+  * … only 1 in 1000 should exceed \(\-3\.3\, \+3\.3\)
+  * If N = 100\, and one residual is 7\.4\, that is unusual
+
+## Outliers in x-space
+
+* _Mahalanobis_  _ distance _
+  * Extreme score on predictor
+    * Or on combination of predictors
+  * Large value indicates outlier
+  * Cutoff depends on # predictors
+
+_Exact critical values_
+
+* 1 predictor: 		10.82
+* 2 predictors:		13.81
+* 3 predictors:		16.26
+* 4 predictors:		18.46
+* 5 predictors:		20.51
+
+## Outliers in xy-space
+
+Outliers in xy-space can seriously affect your conclusions!
+
+![](img/assumptions12.jpg)
+
+
+## Outliers in xy-space
+
+* Cook’s distance
+  * Outlier in terms of both outcome and predictors
+* Rule of thumb: Cook > 1
+
+## Example
+
+![](img/assumptions13.png)
+
+## Example
+
+![](img/assumptions14.png)
+
+## Example
+
+![](img/assumptions15.png)
+
+![](img/assumptions16.png)
+
+## Example
+
+![](img/assumptions17.png)
+
+![](img/assumptions18.png)
+
+## Example
+
+![](img/assumptions19.png)
+
+## Example
+
+![](img/assumptions20.png)
+
+## Reasons for outliers
+
+* Typo or miscoded missing value
+  * Solution: fix the mistake
+* Not a member of the intended population
+  * E.g., student of 60 years old
+  * Solution: Remove from analysis (and  __explain __ why)
+* Sensitivity analysis: With vs without the outlier(s)
+  * Hope it does not affect your conclusions
+
+## Multicollinearity
+
+* When predictors are associated
+  * And predict the **same variance** in the DV
+* Diagnosis:  __variance inflation factor __ (VIF) or  __Tolerance__  (1/VIF)
+  * _Rule of thumb_
+  * VIF > 10 implies  __serious__  problem
+  * Tolerance > 5 implies  __potential__  problem
+
+## Multicollinearity example
+
+![](img/assumptions23.png)
+
+## Multicollinearity
+
+* How to fix multicollinearity:
+  * Increase the sample size
+  * Remove multicolinear predictors (except one)
+  * Combine predictors
+
+## Dealing with assumption violations
+
+* Independent observations
+    + Account for group membership (not part of course)
+* Linear effects
+    + Transform variable (square, square root)
+* Normality of residuals
+    + Increase sample size
+    + Use different outcome distribution (e.g., binomial)
+    + Use non-parametric approach
+    + Remove outliers
+* Homoscedasticity
+    + Account for source of heteroscedasticity
+    + Use non-parametric approach
+* Model correctly specified
+    + Check direction of causality
+    + Include all confounders, interactions, nonlinear effects
+* No multicolinearity
+    + Check VIF, remove or combine redundant variables
+    
+# Interpreting multiple regression
+
+## Example
+
+Does father involvement explain children's reading performance after controlling for mother involvement and number of books in the home?
+
+## Conceptual model
+
+```{r}
+n=100
+sig <- diag(4)
+sig[lower.tri(sig)] <- c(.2, .5, .3, .1, .3, .6)
+sig[upper.tri(sig)] <- t(sig)[upper.tri(sig)]
+set.seed(20)
+data <- data.frame(mvtnorm::rmvnorm(350, sigma = sig))
+names(data) <- c("Father", "Books", "Mother", "Reading")
+data$Father <- scales::rescale(data$Father, to = c(0, 20))
+data$Mother <- scales::rescale(data$Mother, to = c(0, 20))
+data$Books <- round(scales::rescale(data$Books, to = c(0, 1000)))
+data$Reading <- as.integer(cut(data$Reading, 7))
+out_x <- sample.int(nrow(data), 1)
+out_y <- sample.int(nrow(data), 1)
+out_xy <- sample.int(nrow(data), 1)
+data$Reading[out_x] <- 33
+data$Mother[out_y] <- 100
+data$Reading[out_xy] <- 1
+data$Father[out_xy] <- 20
+
+haven::write_sav(data = data, path = "lecture_9_-_Reading.sav")
+library(tidySEM)
+lo <- get_layout(
+  "x1", "", "", "",
+  "x2", "", "y", "e",
+  "x3", "", "", "", rows = 3
+)
+nod <- data.frame(
+  name = c(paste0("x", 1:3), "y", "e"),
+  label = c("Father\ninvolvement", "Books", "Mother\ninvolvement", "Reading\nperformance", "e"),
+  shape = c(rep("rect", 4), "oval")
+)
+edg <- data.frame(
+  from = c(paste0("x", 1:3), "e"),
+  to = "y"
+)
+graph_sem(layout = lo, nodes = nod, edges = edg)
+```
+
+## Preliminary checks
+
+```{r}
+cors <- cor(data)
+kableExtra::kbl(cors, digits = 2, row.names = TRUE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+## Preliminary checks
+
+```{r}
+pairs(data)
+```
+
+## Outlier checks
+
+```{r}
+tmpmod <- lm(Reading ~ ., data)
+tmp <- data
+tmp$Mahalanobis <- mahalanobis(data, colMeans(data), cov(data))
+tmp$std_res <- scale(tmpmod$residuals)
+tmp$cook <- cooks.distance(tmpmod)
+tmp <- tmp[order(tmp$Mahalanobis, abs(tmp$std_res), tmp$cook, decreasing = TRUE), ]
+tab <- head(tmp)
+kableExtra::kbl(tab, digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+
+
+<!-- ```{r} -->
+<!-- res_first <- lm(Reading ~ ., data= data) -->
+<!-- library(ggplot2) -->
+<!-- df_plot <- data.frame(Predicted = res_first$fitted.values, Residuals = scale(res_first$residuals)) -->
+<!-- ggplot(df_plot, aes(x = Predicted, y = Residuals)) + geom_point() + geom_smooth() + geom_hline(yintercept = 0, linetype = 2) + theme_bw() -->
+
+<!-- ``` -->
+
+
+## Analysis
+
+```{r}
+source("functions.R")
+mah <- mahalanobis(data, colMeans(data), cov(data))
+data <- data[!mah > 16.26, ]
+res2 <- lm(Reading ~ ., data= data)
+cooksd <- cooks.distance(res2)
+data <- data[!((cooksd > (4/nrow(data)))|scale(res2$residuals) > 3.3), ]
+res <- lm_spss(Reading ~ ., data= data)
+res2 <- lm(Reading ~ ., data= data)
+kableExtra::kbl(res$Summary, digits = 2, caption = "Model Summary") |> kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+* Multiple regression: Multiple $R^2$
+* Does the model (inc. all predictors) explain significant variance in the outcome?
+* Proportion explained variance
+
+$R^2_{y,x_1-x_k} = \frac{RSS}{TSS}$
+
+## ANOVA
+
+```{r}
+kableExtra::kbl(res$ANOVA, digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+## Model test
+
+1. Formulate hypotheses:
+
+$H_0: \rho^2_{y,x_1-x_k}=0$
+$H_1: \rho^2_{y,x_1-x_k}>0$
+$\alpha =.05$
+
+2. Write down F, both df and p
+3. Is p smaller than $\alpha$?
+4. Draw conclusion
+
+## Reporting
+
+The regression model explained a significant proportion of the variance in the outcome, $R^2 = `r tmp = summary(res2); round(tmp[["r.squared"]], 2)`, F(`r tmp[["fstatistic"]][2]`, `r tmp[["fstatistic"]][3]`) = `r round(tmp[["fstatistic"]][1], 2)`, p < .001.$ This means that father involvement, mother involvement, and books in the home together explained `r round(tmp[["r.squared"]]*100, 2)`% of the variance in children's reading performance.
+
+
+## Coefficients
+
+```{r}
+k <- kableExtra::kable(res$Coefficients, 
+                      digits = 2, 
+                      row.names = FALSE, 
+                      caption = "Coefficients",
+                      escape = FALSE) |>
+      kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover")
+      )
+    
+k <- c("<div class=\"kable-table\">", k, "</div>") |>
+          paste(collapse = "\n")
+knitr::asis_output(k)
+# kableExtra::kbl(res$Coefficients, digits = 2, format = "html") |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+Fill out the formula:
+
+$`r makefunction(res2)`$
+
+<!-- $books_i = 1.30 - 0.04*Father_i + 0.00*Books_i + 0.24 * Mother_i + \epsilon_i$ -->
+
+## Testing coefficients
+
+* Is there a unique effect of $X_.$, controlling for all other $X$-s?
+
+1. Formulate hypothesis
+
+$H_0: \beta =0$
+$H_1: \beta \neq 0$
+$\alpha = .05$
+
+2. Write down $\hat{B}$, $t$, $df$, and $p$
+3. Is p smaller than $\alpha$?
+4. Draw conclusion
+
+## Reporting
+
+After controlling for mothers' involvement and number of books in the home, fathers' involvement had a `r c("non-significant", "significant")[(tmp[["coefficients"]][2,4] < .05)+1]` effect on children's reading performance, $b_{father} = `r  round(res2[["coefficients"]][2], 2)`, t(`r tmp[["df"]][2]`) = `r round(tmp[["coefficients"]][2,3], 2)`, p `r report(tmp[["coefficients"]][2,4])`$ This means that, for every extra hour of father involvement, children's reading performance was `r  round(res2[["coefficients"]][2], 2)` points worse.
+
+## Variable importance
+
+```{r}
+tab <- res$Coefficients
+tab <- tab[!tab$Model == "(Constant)", ]
+tab <- tab[order(tab$Beta, decreasing = TRUE), ]
+kableExtra::kbl(tab, digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+* Which predictor is the most important?
+* So... are fathers unimportant? Harmful?
+
+## Multicolinearity
+
+Ask for the VIF:
+
+```{r}
+tab <- res$Coefficients
+tab$VIF <- c(NA, car::vif(res2))
+
+kableExtra::kbl(tab, digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+* No multicolinearity!
+
+## As a Venn diagram
+
+```{r}
+knitr::include_graphics("materials/venn_reading.png")
+```
+
+
+## Compare bivariate regression
+
+```{r}
+res_father <- lm_spss(Reading ~ Father, data = data)
+kableExtra::kbl(res_father$Summary, caption = "Summary", digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+
+```
+
+```{r}
+kableExtra::kbl(res_father$ANOVA, caption = "ANOVA", digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+
+```
+
+## Coefficients
+
+```{r}
+kableExtra::kbl(res_father$Coefficients, digits = 2, row.names = FALSE) |> kable_styling(bootstrap_options = c("striped", "hover")) 
+```
+
+* Father's involvement DOES predict reading, but the UNIQUE effect (controlling for mother and books) is not sig.
+
+* I created fake data, so I know that there is a true effect - it's just too small to be sig. with this sample size
+
+* Check for yourself if you want:
+    `lecture_9_-_Reading.sav`
