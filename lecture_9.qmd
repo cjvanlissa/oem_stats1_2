@@ -83,6 +83,12 @@ grid.arrange(werkplot1, genderplot1, ncol=2)
 
 ```
 
+## Shared variance
+
+```{r}
+knitr::include_graphics("materials/venn_two_bivariate.png")
+```
+
 
 ## Multiple regression example
 
@@ -109,6 +115,12 @@ genderplot2 <- ggplot(invdat, aes(x=Genderrole, y=Involvement))+
 
 grid.arrange(werkplot2, genderplot2, ncol=2)
 
+```
+
+## Shared variance
+
+```{r}
+knitr::include_graphics("materials/venn_bivariate.png")
 ```
 
 ## Multiple regression example 2
